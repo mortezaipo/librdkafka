@@ -187,7 +187,7 @@ enum ErrorCode {
 	/** Produced message timed out*/
 	ERR__MSG_TIMED_OUT = -192,
 	/** Reached the end of the topic+partition queue on
-	 * the broker. Not really an error. 
+	 * the broker. Not really an error.
 	 * This event is disabled by default,
 	 * see the `enable.partition.eof` configuration property. */
 	ERR__PARTITION_EOF = -191,
@@ -558,7 +558,7 @@ class RD_EXPORT DeliveryReportCb {
  * The callback should invoke RdKafka::oauthbearer_set_token() or
  * RdKafka::oauthbearer_set_token_failure() to indicate success or failure,
  * respectively.
- * 
+ *
  * The refresh operation is eventable and may be received when an event
  * callback handler is set with an event type of
  * \c RdKafka::Event::EVENT_OAUTHBEARER_TOKEN_REFRESH.
@@ -944,6 +944,19 @@ class RD_EXPORT SocketCb {
 
 
 /**
+ * @brief \b Portability: SocketCb callback class
+ *
+ */
+class RD_EXPORT ErrorCb {
+ public:
+
+ virtual void error_cb (rd_kafka_s *rk, int err, const char *reason) = 0;
+
+  virtual ~ErrorCb() { }
+};
+
+
+/**
  * @brief \b Portability: OpenCb callback class
  *
  */
@@ -1068,6 +1081,10 @@ class RD_EXPORT Conf {
 
   /** @brief Use with \p name = \c \"socket_cb\" */
   virtual Conf::ConfResult set (const std::string &name, SocketCb *socket_cb,
+                                std::string &errstr) = 0;
+
+  /** @brief Use with \p name = \c \"error_cb\" */
+  virtual Conf::ConfResult set (const std::string &name, ErrorCb *socket_cb,
                                 std::string &errstr) = 0;
 
   /** @brief Use with \p name = \c \"open_cb\" */
@@ -1405,7 +1422,7 @@ class RD_EXPORT Handle {
    *
    * @returns The fetch queue for the given partition if successful. Else,
    *          NULL is returned.
-   *          
+   *
    * @remark This function only works on consumers.
    */
   virtual Queue *get_partition_queue (const TopicPartition *partition) = 0;
@@ -1539,10 +1556,10 @@ class RD_EXPORT Handle {
    * this method upon success. The extension keys must not include the reserved
    * key "`auth`", and all extension keys and values must conform to the
    * required format as per https://tools.ietf.org/html/rfc7628#section-3.1:
-   * 
+   *
    *     key            = 1*(ALPHA)
    *     value          = *(VCHAR / SP / HTAB / CR / LF )
-   * 
+   *
    * @returns \c RdKafka::ERR_NO_ERROR on success, otherwise \p errstr set
    *              and:<br>
    *          \c RdKafka::ERR__INVALID_ARG if any of the arguments are
@@ -1551,7 +1568,7 @@ class RD_EXPORT Handle {
    *              supported by this build;<br>
    *          \c RdKafka::ERR__STATE if SASL/OAUTHBEARER is supported but is
    *              not configured as the client's authentication mechanism.<br>
-   * 
+   *
    * @sa RdKafka::oauthbearer_set_token_failure
    * @sa RdKafka::Conf::set() \c "oauthbearer_token_refresh_cb"
    */
@@ -1756,7 +1773,7 @@ public:
  * Represents message headers.
  *
  * https://cwiki.apache.org/confluence/display/KAFKA/KIP-82+-+Add+Record+Headers
- * 
+ *
  * @remark Requires Apache Kafka >= 0.11.0 brokers
  */
 class RD_EXPORT Headers {
@@ -1887,24 +1904,24 @@ public:
 
   /**
    * @brief Create a new instance of the Headers object
-   * 
+   *
    * @returns an empty Headers list
    */
   static Headers *create();
 
   /**
    * @brief Create a new instance of the Headers object from a std::vector
-   * 
+   *
    * @params headers std::vector of RdKafka::Headers::Header objects.
    *                 The headers are copied, not referenced.
-   * 
+   *
    * @returns a Headers list from std::vector set to the size of the std::vector
    */
   static Headers *create(const std::vector<Header> &headers);
 
   /**
    * @brief Adds a Header to the end of the list.
-   * 
+   *
    * @param key header key/name
    * @param value binary value, or NULL
    * @param value_size size of the value
@@ -1918,10 +1935,10 @@ public:
    * @brief Adds a Header to the end of the list.
    *
    * Convenience method for adding a std::string as a value for the header.
-   * 
+   *
    * @param key header key/name
    * @param value value string
-   * 
+   *
    * @returns an ErrorCode signalling success or failure to add the header.
    */
   virtual ErrorCode add(const std::string &key, const std::string &value) = 0;
@@ -1939,18 +1956,18 @@ public:
 
   /**
    * @brief Removes all the Headers of a given key
-   * 
+   *
    * @param key header key/name to remove
-   * 
+   *
    * @returns An ErrorCode signalling a success or failure to remove the Header.
    */
   virtual ErrorCode remove(const std::string &key) = 0;
 
   /**
    * @brief Gets all of the Headers of a given key
-   * 
+   *
    * @param key header key/name
-   * 
+   *
    * @remark If duplicate keys exist this will return them all as a std::vector
    *
    * @returns a std::vector containing all the Headers of the given key.
@@ -1959,9 +1976,9 @@ public:
 
   /**
    * @brief Gets the last occurrence of a Header of a given key
-   * 
+   *
    * @param key header key/name
-   * 
+   *
    * @remark This will only return the most recently added header
    *
    * @returns the Header if found, otherwise a Header with an err set to
@@ -2142,7 +2159,7 @@ class RD_EXPORT Queue {
    * If \p dst is \c NULL, the forwarding is removed.
    *
    * The internal refcounts for both queues are increased.
-   * 
+   *
    * @remark Regardless of whether \p dst is NULL or not, after calling this
    *         function, \p src will not forward it's fetch queue to the consumer
    *         queue.
@@ -2738,7 +2755,7 @@ class RD_EXPORT Producer : public virtual Handle {
    *                   Messages are considered in-queue from the point they
    *                   are accepted by produce() until their corresponding
    *                   delivery report callback/event returns.
-   *                   It is thus a requirement to call 
+   *                   It is thus a requirement to call
    *                   poll() (or equiv.) from a separate
    *                   thread when RK_MSG_BLOCK is used.
    *                   See WARNING on \c RK_MSG_BLOCK above.
@@ -2999,17 +3016,17 @@ class Metadata {
   typedef TopicMetadataVector::const_iterator  TopicMetadataIterator;
 
 
-  /** 
-  * @brief Broker list 
+  /**
+  * @brief Broker list
   * @remark Ownership of the returned pointer is retained by the instance of
-  * Metadata that is called. 
+  * Metadata that is called.
   */
   virtual const BrokerMetadataVector *brokers() const = 0;
 
-  /** 
-  * @brief Topic list 
+  /**
+  * @brief Topic list
   * @remark Ownership of the returned pointer is retained by the instance of
-  * Metadata that is called. 
+  * Metadata that is called.
   */
   virtual const TopicMetadataVector  *topics() const = 0;
 

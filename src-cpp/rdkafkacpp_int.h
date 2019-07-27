@@ -61,6 +61,8 @@ void log_cb_trampoline (const rd_kafka_t *rk, int level,
                         const char *fac, const char *buf);
 void error_cb_trampoline (rd_kafka_t *rk, int err, const char *reason,
                           void *opaque);
+void error_cb_custom_trampoline (rd_kafka_t *rk, int err, const char *reason,
+                          void *opaque);
 void throttle_cb_trampoline (rd_kafka_t *rk, const char *broker_name,
 			     int32_t broker_id, int throttle_time_ms,
 			     void *opaque);
@@ -414,6 +416,7 @@ class ConfImpl : public Conf {
       dr_cb_(NULL),
       event_cb_(NULL),
       socket_cb_(NULL),
+       error_cb_(NULL),
       open_cb_(NULL),
       partitioner_cb_(NULL),
       partitioner_kp_cb_(NULL),
@@ -469,7 +472,7 @@ class ConfImpl : public Conf {
 
   Conf::ConfResult set (const std::string &name, EventCb *event_cb,
                         std::string &errstr) {
-    if (name != "event_cb") {
+    if (name != "event_cb" && name != "log_cb") {
       errstr = "Invalid value type, expected RdKafka::EventCb";
       return Conf::CONF_INVALID;
     }
@@ -553,6 +556,21 @@ class ConfImpl : public Conf {
     return Conf::CONF_OK;
   }
 
+  Conf::ConfResult set (const std::string &name, ErrorCb *error_cb,
+                        std::string &errstr) {
+    if (name != "error_cb") {
+      errstr = "Invalid value type, expected RdKafka::ErorrCb";
+      return Conf::CONF_INVALID;
+    }
+
+    if (!rk_conf_) {
+      errstr = "Requires RdKafka::Conf::CONF_GLOBAL object";
+      return Conf::CONF_INVALID;
+    }
+
+    error_cb_ = error_cb;
+    return Conf::CONF_OK;
+  }
 
   Conf::ConfResult set (const std::string &name, OpenCb *open_cb,
                         std::string &errstr) {
@@ -657,6 +675,7 @@ class ConfImpl : public Conf {
         name.compare("partitioner_key_pointer_cb") == 0 ||
         name.compare("socket_cb") == 0 ||
         name.compare("open_cb") == 0 ||
+	name.compare("error_cb") == 0 ||
         name.compare("rebalance_cb") == 0 ||
         name.compare("offset_commit_cb") == 0 ||
         name.compare("oauthbearer_token_refresh_cb") == 0 ||
@@ -735,6 +754,13 @@ class ConfImpl : public Conf {
       return Conf::CONF_OK;
   }
 
+  Conf::ConfResult get(ErrorCb *&error_cb) const {
+      if (!rk_conf_)
+	  return Conf::CONF_INVALID;
+      error_cb = this->error_cb_;
+      return Conf::CONF_OK;
+  }
+
   Conf::ConfResult get(OpenCb *&open_cb) const {
       if (!rk_conf_)
 	  return Conf::CONF_INVALID;
@@ -800,6 +826,7 @@ class ConfImpl : public Conf {
   DeliveryReportCb *dr_cb_;
   EventCb *event_cb_;
   SocketCb *socket_cb_;
+  ErrorCb *error_cb_;
   OpenCb *open_cb_;
   PartitionerCb *partitioner_cb_;
   PartitionerKeyPointerCb *partitioner_kp_cb_;
@@ -941,6 +968,7 @@ class HandleImpl : virtual public Handle {
   ConsumeCb *consume_cb_;
   EventCb *event_cb_;
   SocketCb *socket_cb_;
+  ErrorCb *error_cb_;
   OpenCb *open_cb_;
   DeliveryReportCb *dr_cb_;
   PartitionerCb *partitioner_cb_;

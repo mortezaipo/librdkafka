@@ -87,6 +87,11 @@ void RdKafka::error_cb_trampoline (rd_kafka_t *rk, int err,
   handle->event_cb_->event_cb(event);
 }
 
+void RdKafka::error_cb_custom_trampoline (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+  RdKafka::HandleImpl *handle = static_cast<RdKafka::HandleImpl *>(opaque);
+  return handle->error_cb_->error_cb(rk, err, reason);
+}
+
 
 void RdKafka::throttle_cb_trampoline (rd_kafka_t *rk, const char *broker_name,
 				      int32_t broker_id,
@@ -101,6 +106,7 @@ void RdKafka::throttle_cb_trampoline (rd_kafka_t *rk, const char *broker_name,
 
   handle->event_cb_->event_cb(event);
 }
+
 
 
 int RdKafka::stats_cb_trampoline (rd_kafka_t *rk, char *json, size_t json_len,
@@ -178,18 +184,18 @@ int RdKafka::ssl_cert_verify_cb_trampoline (rd_kafka_t *rk,
 
 RdKafka::ErrorCode RdKafka::HandleImpl::metadata (bool all_topics,
                                                   const Topic *only_rkt,
-                                                  Metadata **metadatap, 
+                                                  Metadata **metadatap,
                                                   int timeout_ms) {
 
   const rd_kafka_metadata_t *cmetadatap=NULL;
 
-  rd_kafka_topic_t *topic = only_rkt ? 
+  rd_kafka_topic_t *topic = only_rkt ?
     static_cast<const TopicImpl *>(only_rkt)->rkt_ : NULL;
 
   const rd_kafka_resp_err_t rc = rd_kafka_metadata(rk_, all_topics, topic,
                                                    &cmetadatap,timeout_ms);
 
-  *metadatap = (rc == RD_KAFKA_RESP_ERR_NO_ERROR) ? 
+  *metadatap = (rc == RD_KAFKA_RESP_ERR_NO_ERROR) ?
     new RdKafka::MetadataImpl(cmetadatap) : NULL;
 
   return static_cast<RdKafka::ErrorCode>(rc);
@@ -267,7 +273,7 @@ void RdKafka::HandleImpl::set_common_config (RdKafka::ConfImpl *confimpl) {
     rd_kafka_conf_set_log_cb(confimpl->rk_conf_,
                              RdKafka::log_cb_trampoline);
     rd_kafka_conf_set_error_cb(confimpl->rk_conf_,
-                               RdKafka::error_cb_trampoline);
+                               RdKafka::error_cb_custom_trampoline);
     rd_kafka_conf_set_throttle_cb(confimpl->rk_conf_,
 				  RdKafka::throttle_cb_trampoline);
     rd_kafka_conf_set_stats_cb(confimpl->rk_conf_,
@@ -286,6 +292,12 @@ void RdKafka::HandleImpl::set_common_config (RdKafka::ConfImpl *confimpl) {
     rd_kafka_conf_set_socket_cb(confimpl->rk_conf_,
                                 RdKafka::socket_cb_trampoline);
     socket_cb_ = confimpl->socket_cb_;
+  }
+
+  if (confimpl->error_cb_) {
+    rd_kafka_conf_set_error_cb(confimpl->rk_conf_,
+			       RdKafka::error_cb_custom_trampoline);
+    error_cb_ = confimpl->error_cb_;
   }
 
   if (confimpl->ssl_cert_verify_cb_) {
@@ -428,4 +440,3 @@ update_partitions_from_c_parts (std::vector<RdKafka::TopicPartition*> &partition
 }
 
 };
-
